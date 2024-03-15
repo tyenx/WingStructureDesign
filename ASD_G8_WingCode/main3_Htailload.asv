@@ -1,0 +1,182 @@
+% 20240215 计算水平尾翼载荷
+clc
+clear
+close all
+
+%% 输入飞机设计参数
+load Aircraft_Parameter.mat;
+
+%% 给出设计参数和飞行状态，暂定值
+fly_state.load_factor = 1; %设计载荷系数，单位-
+fly_state.load_case = 2;
+
+des_para.xcg_tailH = -(0.498-0.4); %重心与剪心距离（在剪心前为正），单位（*弦长）
+des_para.xhg_tailH = -(0.7-0.4); %升降舵铰链与剪心距离（在剪心前为正），单位（*弦长）
+
+%%
+i = 1;
+step = 0.05; %划分尾翼微元长度（展向）
+factor = 1; %画图因子
+side = 'left'; %选择计算哪一侧
+for X=0:step:5.35
+    %惯性载荷
+    [S_i, BM_i, ~] = load_tailH_inertia(aircft_para,X);
+    Loadi_local = load_tailH_local_inertia(aircft_para,X,step);
+
+    %气动力
+    [S_a, BM_a, ~] = load_tailH_aero(fly_state,aircft_para,X,side);
+    Aero_local = load_tailH_aero_local(fly_state,aircft_para,X,side,step);
+
+    %外力矩（扭矩）
+    [T, ~] = load_tailH_torque(fly_state,aircft_para,des_para,X,side);
+    Moment_local = load_tailH_local_torque(fly_state,aircft_para,des_para,X,side,step);
+
+    %记录数据
+    data_shear_i(i,:) = [X,S_i*factor]; %惯性载荷产生的剪力
+    data_bending_i(i,:) = [X,BM_i*factor]; %惯性载荷产生的弯矩
+    data_shear_a(i,:) = [X,S_a*factor]; %气动力产生的剪力
+    data_bending_a(i,:) = [X,BM_a*factor]; %气动力产生的弯矩
+    data_shear(i,:) = [X,(S_i+S_a)*factor]; %剪力
+    data_bending(i,:) = [X,(BM_i+BM_a)*factor]; %弯矩
+    data_torque(i,:) = [X,T*factor]; %扭矩
+    data_loadi_local(i,:) = [X,Loadi_local*factor]; %局部惯性载荷
+    data_aero_local(i,:) = [X,Aero_local*factor]; %局部气动力
+    data_moment_local(i,:) = [X,Moment_local*factor]; %局部外力矩
+    i = i+1;
+end
+
+
+
+f1 = figure;
+f1.Position = [100 100 800 550];
+
+subplot(3,1,1)
+f1p1 = plot(data_loadi_local(:,1),data_loadi_local(:,2));
+f1p1_ax = gca;
+f1p1_ax.YAxis.Exponent = 3;
+title('\rm (a) Inertia Load Distribution')
+ylabel('Load (N)');
+
+subplot(3,1,2)
+f1p2 = plot(data_shear_i(:,1),data_shear_i(:,2));
+f1p2_ax = gca;
+
+title('\rm (b) Shear Force Distribution')
+ylabel('Shear Force (N)');
+
+subplot(3,1,3)
+f1p3 = plot(data_bending_i(:,1),data_bending_i(:,2));
+f1p3_ax = gca;
+title('\rm (c) Bending Moment Distribution')
+ylabel('Bending Moment (Nm)')
+xlabel('Semi HTP Span Stations (m)');
+
+align_Ylabels(gcf)
+set([f1p1,f1p2,f1p3],'Color', ...
+                'k','LineWidth',1.5)
+set([f1p1_ax,f1p2_ax,f1p3_ax],'fontname','CMU Serif', ...
+                      'FontSize',14, ...
+                      'LineWidth',1, ...
+                      'xlim', [0 5.5])
+
+%% Wing Aerodynamic Load 
+f2 = figure;
+f2.Position = [100 100 800 550];
+
+subplot(3,1,1)
+f2p1 = plot(data_aero_local(:,1),real(data_aero_local(:,2)));
+f2p1_ax = gca;
+f2p1_ax.YAxis.Exponent = 4;
+title('\rm (a) Control Surface Force Distribution')
+ylabel('Lift (N)');
+
+subplot(3,1,2)
+f2p2 = plot(data_shear_a(:,1),data_shear_a(:,2));
+f2p2_ax = gca;
+title('\rm (b) Shear Force Distribution')
+ylabel('Shear Force (N)');
+
+subplot(3,1,3)
+f2p3 = plot(data_bending_a(:,1),data_bending_a(:,2));
+f2p3_ax = gca;
+title('\rm (c) Bending Moment Distribution')
+ylabel('Bending Moment (Nm)')
+xlabel('Semi Wingspan Stations (m)')
+
+align_Ylabels(gcf)
+set([f2p1,f2p2,f2p3],'Color', ...
+                'k','LineWidth',1.5)
+set([f2p1_ax,f2p2_ax,f2p3_ax],'fontname','CMU Serif', ...
+                      'FontSize',14, ...
+                      'LineWidth',1, ...
+                      'xlim', [0 5.5])
+
+f3 = figure;
+f3.Position = [100 100 800 360];
+
+subplot(2,1,1)
+f3p1 = plot(data_moment_local(:,1),real(data_moment_local(:,2)));
+f3p1_ax = gca;
+f3p1_ax.YAxis.Exponent = 3;
+title('\rm (a) Wing Local Torque Distribution')
+ylabel('Torque (Nm)');
+
+subplot(2,1,2)
+f3p2 = plot(data_torque(:,1),data_torque(:,2));
+f3p2_ax = gca;
+title('\rm (b) Wing Torque Distribution')
+ylabel('Torque (Nm)'),
+xlabel('Semi Wingspan Stations (m)');
+
+align_Ylabels(gcf)
+set([f3p1,f3p2],'Color', ...
+                'k','LineWidth',1.5)
+set([f3p1_ax,f3p2_ax],'fontname','CMU Serif', ...
+                      'FontSize',14, ...
+                      'LineWidth',1, ...
+                      'xlim', [0 5.5])
+
+f4 = figure;
+f4.Position = [100 100 800 550];
+
+subplot(3,1,1)
+f4p1 = plot(data_loadi_local(:,1),real(data_loadi_local(:,2)+data_aero_local(:,2)));
+f4p1_ax = gca;
+f4p1_ax.YAxis.Exponent = 4;
+title('\rm (a) Total Load Force Distribution')
+ylabel('Load Force (N)')
+ylim([0,1.5e4])
+
+subplot(3,1,2)
+f4p2 = plot(data_shear(:,1),data_shear(:,2));
+f4p2_ax = gca;
+title('\rm (b) Total Shear Force Distribution')
+ylabel('Shear Force (N)'),
+ylim([0,12e4])
+
+subplot(3,1,3)
+f4p3 = plot(data_bending(:,1),data_bending(:,2));
+f4p3_ax = gca;
+title('\rm (c) Total Bending Moment Distribution')
+ylabel('Bending Moment (Nm)');
+xlabel('Semi Wingspan Stations (m)');
+ylim('tickaligned')
+
+align_Ylabels(gcf)
+set([f4p1,f4p2,f4p3],'Color', ...
+                'k','LineWidth',1.5)
+set([f4p1_ax,f4p2_ax,f4p3_ax],'fontname','CMU Serif', ...
+                      'FontSize',14, ...
+                      'LineWidth',1, ...
+                      'xlim', [0 5.5])
+
+
+
+
+% Saving the figures as PDF files
+if 0
+    exportgraphics(f1,'wing_inertia_load.pdf','ContentType','vector')
+    exportgraphics(f2,'wing_aero_load.pdf','ContentType','vector')
+    exportgraphics(f3,'wing_torque.pdf','ContentType','vector')
+    exportgraphics(f4,'wing_tot.pdf','ContentType','vector')
+end
